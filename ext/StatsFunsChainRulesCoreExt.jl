@@ -36,16 +36,25 @@ ChainRulesCore.@scalar_rule(
 ChainRulesCore.@scalar_rule(
     fdistlogpdf(ν1::Real, ν2::Real, x::Number),
     @setup(
-        xν1 = x * ν1,
-        temp1 = xν1 + ν2,
-        a = (x - 1) / temp1,
-        νsum = ν1 + ν2,
-        di = digamma(νsum / 2),
+        di = digamma((ν1 + ν2) / 2),
+        # `r = u / (1 - u)` for the beta variate `u`, split as in `fdistlogpdf`
+        ν1ν2 = ν1 / ν2,
+        r = ν1ν2 * x,
+        invr = inv(r),
+        log1pr = isinf(r) ? log(ν1ν2) + log(x) : log1p(r),
+        # `(x - 1) / (ν1 * x + ν2)`, in the form that stays finite for a large `x`
+        temp1 = ν1 * x + ν2,
+        a = isinf(temp1) ? (1 - inv(x)) / (ν1 + ν2 / x) : (x - 1) / temp1,
+        ν2a = ν2 * a,
     ),
     (
-        (-log1p(ν2 / xν1) - ν2 * a + di - digamma(ν1 / 2)) / 2,
-        (-log1p(xν1 / ν2) + ν1 * a + di - digamma(ν2 / 2)) / 2,
-        ((ν1 - 2) / x - ν1 * νsum / temp1) / 2,
+        # `log(u)` as in `fdistlogpdf`
+        ((isfinite(invr) ? -log1p(invr) : log(ν1ν2) + log(x) - log1pr) - ν2a + di - digamma(ν1 / 2)) / 2,
+        (-log1pr + ν1 * a + di - digamma(ν2 / 2)) / 2,
+        # `(ν1 - 2) / (2 * x) - ν1 * (ν1 + ν2) / (2 * temp1)`, combined into a single quotient
+        # so that the two terms cannot cancel for a large `ν1`. `ν1 * ν2` would overflow for the
+        # largest degrees of freedom, whereas `ν2 * a` is a ratio of the two
+        -(ν1 * ν2a / 2 + 1) / x,
     ),
 )
 
